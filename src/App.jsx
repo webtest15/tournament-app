@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const SK_MEMBERS  = "trn-members-v1";
-const SK_BRACKET  = "trn-bracket-v1";
-const SK_SETTINGS = "trn-settings-v1";
-const ADMIN_PIN   = "1234";
-const POLL_MS     = 500;
+const ADMIN_PIN = "1234";
+const POLL_MS   = 500;
+// ルームIDはApp側で動的生成
+const makeKeys = (roomId) => ({
+  members:  `trn2-${roomId}-members`,
+  bracket:  `trn2-${roomId}-bracket`,
+  settings: `trn2-${roomId}-settings`,
+});
 
 const CARD_W  = 180;
 const CARD_H  = 60;
@@ -369,12 +372,12 @@ function MemberScreen({ members, setMembers, isAdmin, onGenerate }) {
   const add = () => {
     const n = name.trim(); if (!n) return;
     const updated = [...members, { id:uid(), name:n, flag }];
-    setMembers(updated); sset(SK_MEMBERS, updated);
+    setMembers(updated); sset(SK.members, updated);
     setName(""); setFlag("👤");
   };
   const remove = (id) => {
     const updated = members.filter(m=>m.id!==id);
-    setMembers(updated); sset(SK_MEMBERS, updated);
+    setMembers(updated); sset(SK.members, updated);
   };
   const size = bracketSize(members.length);
 
@@ -493,8 +496,126 @@ function SetupScreen({ members, onStart, onBack }) {
   );
 }
 
+// ─── Room Entry Screen ───────────────────────────────────────────────────────
+function RoomScreen({ onEnter }) {
+  const [input, setInput] = useState("");
+  const [mode, setMode]   = useState("join"); // join | create
+  const [err, setErr]     = useState("");
+
+  const normalize = (s) => s.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+  const handleCreate = () => {
+    const newId = Math.random().toString(36).slice(2,8).toUpperCase();
+    onEnter(newId);
+  };
+  const handleJoin = () => {
+    const id = normalize(input);
+    if (id.length < 3) { setErr("3文字以上入力してください"); return; }
+    onEnter(id);
+  };
+
+  return (
+    <div style={{
+      minHeight:"100vh", background:"#f5f6fa",
+      display:"flex", alignItems:"center", justifyContent:"center",
+      padding:24, fontFamily:"'Noto Sans JP',sans-serif",
+    }}>
+      <div style={{width:"100%", maxWidth:400}}>
+        {/* Logo */}
+        <div style={{textAlign:"center", marginBottom:36}}>
+          <div style={{fontSize:44, marginBottom:8}}>🏆</div>
+          <div style={{fontSize:26, fontWeight:900, color:"#1a202c", letterSpacing:"-0.5px"}}>
+            ブラケット
+          </div>
+          <div style={{fontSize:12, color:"#94a3b8", marginTop:4, letterSpacing:2}}>TOURNAMENT MANAGER</div>
+        </div>
+
+        {/* Card */}
+        <div style={{
+          background:"#fff", borderRadius:18, padding:28,
+          boxShadow:"0 4px 24px rgba(0,0,0,0.10)",
+          border:"1px solid #e2e6ef",
+        }}>
+          {/* Tabs */}
+          <div style={{display:"flex", gap:6, marginBottom:24, background:"#f1f4f9", borderRadius:10, padding:4}}>
+            {[["join","参加する"],["create","新規作成"]].map(([m,label])=>(
+              <button key={m} onClick={()=>{setMode(m);setErr("");setInput("");}}
+                style={{
+                  flex:1, padding:"9px 0", borderRadius:8, border:"none", cursor:"pointer",
+                  fontFamily:"'Noto Sans JP',sans-serif", fontSize:13, fontWeight:600,
+                  background: mode===m ? "#fff" : "transparent",
+                  color: mode===m ? "#1a202c" : "#94a3b8",
+                  boxShadow: mode===m ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                  transition:"all 0.15s",
+                }}>{label}</button>
+            ))}
+          </div>
+
+          {mode === "join" ? (
+            <>
+              <div style={{fontSize:13, color:"#64748b", marginBottom:12}}>
+                ルームIDを入力して参加
+              </div>
+              <input
+                value={input}
+                onChange={e=>{ setInput(e.target.value.toUpperCase()); setErr(""); }}
+                onKeyDown={e=>e.key==="Enter"&&handleJoin()}
+                placeholder="例: AB12CD"
+                maxLength={10}
+                style={{
+                  width:"100%", padding:"12px 14px", fontSize:18,
+                  fontFamily:"'Noto Sans JP',sans-serif", letterSpacing:4,
+                  textAlign:"center", textTransform:"uppercase",
+                  border:"1.5px solid #e2e6ef", borderRadius:10,
+                  outline:"none", background:"#f8f9fc", color:"#1a202c",
+                  boxSizing:"border-box",
+                }}
+              />
+              {err && <div style={{color:"#e8393a",fontSize:12,marginTop:6,textAlign:"center"}}>{err}</div>}
+              <button onClick={handleJoin} style={{
+                width:"100%", marginTop:14, padding:"13px",
+                background:"#e8393a", border:"none", borderRadius:10,
+                color:"#fff", fontSize:14, fontWeight:700,
+                fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer",
+                transition:"opacity 0.15s",
+              }}>参加する →</button>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:13, color:"#64748b", marginBottom:16}}>
+                新しいトーナメントを作成します。<br/>
+                ルームIDが発行されるので参加者に共有してください。
+              </div>
+              <button onClick={handleCreate} style={{
+                width:"100%", padding:"13px",
+                background:"#e8393a", border:"none", borderRadius:10,
+                color:"#fff", fontSize:14, fontWeight:700,
+                fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer",
+              }}>新規ルームを作成 →</button>
+            </>
+          )}
+        </div>
+
+        <div style={{textAlign:"center", marginTop:16, fontSize:11, color:"#94a3b8"}}>
+          ルームIDが同じ人は同じトーナメントを共有できます
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
+  const [roomId, setRoomId] = useState(null); // null = room選択前
+
+  if (!roomId) {
+    return <RoomScreen onEnter={(id) => setRoomId(id)} />;
+  }
+  return <TournamentApp roomId={roomId} onLeave={() => setRoomId(null)} />;
+}
+
+function TournamentApp({ roomId, onLeave }) {
+  const SK = makeKeys(roomId);
   const [screen,   setScreen]   = useState("members");
   const [members,  setMembers]  = useState([]);
   const [bracket,  setBracket]  = useState(null);
@@ -507,7 +628,7 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      const [m,b,s] = await Promise.all([sget(SK_MEMBERS),sget(SK_BRACKET),sget(SK_SETTINGS)]);
+      const [m,b,s] = await Promise.all([sget(SK.members),sget(SK.bracket),sget(SK.settings)]);
       if(m){setMembers(m);lastMembersRef.current=JSON.stringify(m);}
       if(b){setBracket(b);lastBracketRef.current=JSON.stringify(b);}
       if(s?.screen)setScreen(s.screen);
@@ -516,7 +637,7 @@ export default function App() {
 
   useEffect(()=>{
     const iv=setInterval(async()=>{
-      const [m,b,s]=await Promise.all([sget(SK_MEMBERS),sget(SK_BRACKET),sget(SK_SETTINGS)]);
+      const [m,b,s]=await Promise.all([sget(SK.members),sget(SK.bracket),sget(SK.settings)]);
       const mStr=JSON.stringify(m),bStr=JSON.stringify(b);
       if(m&&mStr!==lastMembersRef.current){lastMembersRef.current=mStr;setMembers(m);}
       if(b&&bStr!==lastBracketRef.current){lastBracketRef.current=bStr;setBracket(b);}
@@ -534,21 +655,21 @@ export default function App() {
       if(match)match.winner=team;
       const p=propagate(next);
       lastBracketRef.current=JSON.stringify(p);
-      setSyncing(true);sset(SK_BRACKET,p).finally(()=>setSyncing(false));
+      setSyncing(true);sset(SK.bracket,p).finally(()=>setSyncing(false));
       return p;
     });
   },[]);
 
-  const goToSetup=()=>{setScreen("setup");sset(SK_SETTINGS,{screen:"setup"});};
+  const goToSetup=()=>{setScreen("setup");sset(SK.settings,{screen:"setup"});};
   const startTournament=(participants)=>{
     const b=buildBracket(participants);
     lastBracketRef.current=JSON.stringify(b);
-    setBracket(b);sset(SK_BRACKET,b);setScreen("bracket");sset(SK_SETTINGS,{screen:"bracket"});
+    setBracket(b);sset(SK.bracket,b);setScreen("bracket");sset(SK.settings,{screen:"bracket"});
   };
   const resetAll=async()=>{
     if(!window.confirm("全データをリセットしますか？"))return;
     setMembers([]);setBracket(null);setScreen("members");
-    await Promise.all([sset(SK_MEMBERS,[]),sset(SK_BRACKET,null),sset(SK_SETTINGS,{screen:"members"})]);
+    await Promise.all([sset(SK.members,[]),sset(SK.bracket,null),sset(SK.settings,{screen:"members"})]);
   };
 
   const tabStyle=(active)=>({
@@ -558,6 +679,10 @@ export default function App() {
     color:active?"#fff":C.sub,transition:"all 0.15s",
     fontWeight:active?600:400,
   });
+
+  const handleLeave = () => {
+    if (window.confirm("ルームを退出しますか？")) onLeave();
+  };
 
   return (
     <div style={{
@@ -583,7 +708,20 @@ export default function App() {
       {/* Header */}
       <div style={{textAlign:"center",marginBottom:24}}>
         <div style={{fontSize:11,color:C.muted,letterSpacing:4,marginBottom:6,fontWeight:500}}>TOURNAMENT MANAGER</div>
-        <div style={{fontFamily:"'Noto Sans JP'",fontSize:32,fontWeight:900,color:C.text,lineHeight:1,letterSpacing:"-0.5px"}}>🏆 <span style={{color:RED}}>Bracket</span></div>
+        <div style={{fontFamily:"'Noto Sans JP'",fontSize:32,fontWeight:900,color:C.text,lineHeight:1,letterSpacing:"-0.5px"}}>🏆 <span style={{color:RED}}>ブラケット</span></div>
+        {/* Room ID badge */}
+        <div style={{
+          display:"inline-flex",alignItems:"center",gap:8,marginTop:10,
+          background:"#fff",border:"1.5px solid #e2e6ef",borderRadius:20,
+          padding:"5px 14px",boxShadow:"0 1px 4px rgba(0,0,0,0.06)",
+        }}>
+          <span style={{fontSize:10,color:C.muted,letterSpacing:1}}>ROOM</span>
+          <span style={{fontSize:14,fontWeight:700,color:C.text,letterSpacing:3}}>{roomId}</span>
+          <button onClick={handleLeave} style={{
+            background:"none",border:"none",color:C.muted,cursor:"pointer",
+            fontSize:11,padding:0,marginLeft:4,
+          }}>退出</button>
+        </div>
         <div style={{marginTop:10}}>
           {isAdmin?(
             <div style={{display:"inline-flex",alignItems:"center",gap:8,
@@ -603,14 +741,14 @@ export default function App() {
 
       {/* Tab Nav */}
       <div className="tab-nav" style={{display:"flex",gap:8,justifyContent:"center",marginBottom:24}}>
-        <button style={tabStyle(screen==="members")} onClick={()=>{setScreen("members");sset(SK_SETTINGS,{screen:"members"});}}>
+        <button style={tabStyle(screen==="members")} onClick={()=>{setScreen("members");sset(SK.settings,{screen:"members"});}}>
           👥 メンバー{members.length>0?` (${members.length})`:""}
         </button>
         {isAdmin&&members.length>=2&&(
           <button style={tabStyle(screen==="setup")} onClick={()=>setScreen("setup")}>⚙️ 組み合わせ</button>
         )}
         {bracket&&(
-          <button style={tabStyle(screen==="bracket")} onClick={()=>{setScreen("bracket");sset(SK_SETTINGS,{screen:"bracket"});}}>
+          <button style={tabStyle(screen==="bracket")} onClick={()=>{setScreen("bracket");sset(SK.settings,{screen:"bracket"});}}>
             🏆 トーナメント
           </button>
         )}
