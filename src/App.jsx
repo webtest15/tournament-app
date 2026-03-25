@@ -497,6 +497,63 @@ function SetupScreen({ members, onStart, onBack }) {
 }
 
 // ─── Room Entry Screen ───────────────────────────────────────────────────────
+function CreateSection({ onEnter }) {
+  const [created, setCreated] = useState(null);
+  const [copied, setCopied]   = useState(false);
+
+  const handleCreate = () => {
+    const newId = Math.random().toString(36).slice(2,8).toUpperCase();
+    setCreated(newId);
+  };
+  const handleCopy = () => {
+    try { navigator.clipboard.writeText(created); setCopied(true); setTimeout(()=>setCopied(false),2000); } catch {}
+  };
+
+  if (created) return (
+    <div>
+      <div style={{textAlign:"center", marginBottom:16}}>
+        <div style={{fontSize:12, color:"#64748b", marginBottom:8}}>ルームIDが発行されました</div>
+        <div style={{
+          fontSize:28, fontWeight:900, letterSpacing:6, color:"#1a202c",
+          background:"#f8f9fc", border:"2px solid #e2e6ef", borderRadius:12,
+          padding:"14px 20px", marginBottom:8,
+        }}>{created}</div>
+        <button onClick={handleCopy} style={{
+          padding:"6px 16px", background: copied?"#16a34a":"#f1f4f9",
+          border:"1.5px solid "+(copied?"#86efac":"#e2e6ef"),
+          borderRadius:8, fontSize:12, cursor:"pointer",
+          fontFamily:"'Noto Sans JP',sans-serif",
+          color: copied?"#fff":"#64748b", transition:"all 0.2s",
+        }}>{copied ? "✓ コピーしました" : "IDをコピー"}</button>
+      </div>
+      <div style={{fontSize:12, color:"#94a3b8", textAlign:"center", marginBottom:14}}>
+        このIDを参加者に共有してください
+      </div>
+      <button onClick={()=>onEnter(created)} style={{
+        width:"100%", padding:"13px",
+        background:"#e8393a", border:"none", borderRadius:10,
+        color:"#fff", fontSize:14, fontWeight:700,
+        fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer",
+      }}>このルームに入る →</button>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{fontSize:13, color:"#64748b", marginBottom:16}}>
+        新しいトーナメントを作成します。<br/>
+        ルームIDが発行されるので参加者に共有してください。
+      </div>
+      <button onClick={handleCreate} style={{
+        width:"100%", padding:"13px",
+        background:"#e8393a", border:"none", borderRadius:10,
+        color:"#fff", fontSize:14, fontWeight:700,
+        fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer",
+      }}>新規ルームを作成 →</button>
+    </div>
+  );
+}
+
 function RoomScreen({ onEnter }) {
   const [input, setInput] = useState("");
   const [mode, setMode]   = useState("join"); // join | create
@@ -504,10 +561,6 @@ function RoomScreen({ onEnter }) {
 
   const normalize = (s) => s.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-  const handleCreate = () => {
-    const newId = Math.random().toString(36).slice(2,8).toUpperCase();
-    onEnter(newId);
-  };
   const handleJoin = () => {
     const id = normalize(input);
     if (id.length < 3) { setErr("3文字以上入力してください"); return; }
@@ -536,7 +589,29 @@ function RoomScreen({ onEnter }) {
           boxShadow:"0 4px 24px rgba(0,0,0,0.10)",
           border:"1px solid #e2e6ef",
         }}>
-          {/* Tabs */}
+          {/* 前回のルームIDがあれば表示 */}
+          {(() => {
+            try {
+              const saved = localStorage.getItem("trn-room-id");
+              if (saved) return (
+                <div style={{
+                  background:"#f0fdf4", border:"1px solid #86efac", borderRadius:10,
+                  padding:"10px 14px", marginBottom:16, textAlign:"center",
+                }}>
+                  <div style={{fontSize:11, color:"#16a34a", marginBottom:4}}>前回のルーム</div>
+                  <div style={{fontSize:16, fontWeight:700, letterSpacing:3, color:"#1a202c"}}>{saved}</div>
+                  <button onClick={() => onEnter(saved)} style={{
+                    marginTop:8, padding:"6px 18px", background:"#16a34a", border:"none",
+                    borderRadius:8, color:"#fff", fontSize:12, fontWeight:600,
+                    fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer",
+                  }}>このルームに戻る</button>
+                </div>
+              );
+            } catch {}
+            return null;
+          })()}
+
+        {/* Tabs */}
           <div style={{display:"flex", gap:6, marginBottom:24, background:"#f1f4f9", borderRadius:10, padding:4}}>
             {[["join","参加する"],["create","新規作成"]].map(([m,label])=>(
               <button key={m} onClick={()=>{setMode(m);setErr("");setInput("");}}
@@ -581,18 +656,7 @@ function RoomScreen({ onEnter }) {
               }}>参加する →</button>
             </>
           ) : (
-            <>
-              <div style={{fontSize:13, color:"#64748b", marginBottom:16}}>
-                新しいトーナメントを作成します。<br/>
-                ルームIDが発行されるので参加者に共有してください。
-              </div>
-              <button onClick={handleCreate} style={{
-                width:"100%", padding:"13px",
-                background:"#e8393a", border:"none", borderRadius:10,
-                color:"#fff", fontSize:14, fontWeight:700,
-                fontFamily:"'Noto Sans JP',sans-serif", cursor:"pointer",
-              }}>新規ルームを作成 →</button>
-            </>
+  <CreateSection onEnter={onEnter} />
           )}
         </div>
 
@@ -606,12 +670,24 @@ function RoomScreen({ onEnter }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [roomId, setRoomId] = useState(null); // null = room選択前
+  const [roomId, setRoomId] = useState(() => {
+    // リロード後もルームIDを保持
+    try { return localStorage.getItem("trn-room-id") || null; } catch { return null; }
+  });
+
+  const enterRoom = (id) => {
+    try { localStorage.setItem("trn-room-id", id); } catch {}
+    setRoomId(id);
+  };
+  const leaveRoom = () => {
+    // localStorageは消さない → 入室画面で「前回のルーム」として表示
+    setRoomId(null);
+  };
 
   if (!roomId) {
-    return <RoomScreen onEnter={(id) => setRoomId(id)} />;
+    return <RoomScreen onEnter={enterRoom} />;
   }
-  return <TournamentApp roomId={roomId} onLeave={() => setRoomId(null)} />;
+  return <TournamentApp roomId={roomId} onLeave={leaveRoom} />;
 }
 
 function TournamentApp({ roomId, onLeave }) {
@@ -681,7 +757,7 @@ function TournamentApp({ roomId, onLeave }) {
   });
 
   const handleLeave = () => {
-    if (window.confirm("ルームを退出しますか？")) onLeave();
+    if (window.confirm("ルームを退出しますか？\nルームIDは入室画面から再度参加できます。")) onLeave();
   };
 
   return (
@@ -708,7 +784,7 @@ function TournamentApp({ roomId, onLeave }) {
       {/* Header */}
       <div style={{textAlign:"center",marginBottom:24}}>
         <div style={{fontSize:11,color:C.muted,letterSpacing:4,marginBottom:6,fontWeight:500}}>TOURNAMENT MANAGER</div>
-        <div style={{fontFamily:"'Noto Sans JP'",fontSize:32,fontWeight:900,color:C.text,lineHeight:1,letterSpacing:"-0.5px"}}>🏆 <span style={{color:RED}}>ブラケット</span></div>
+        <div style={{fontFamily:"'Noto Sans JP'",fontSize:32,fontWeight:900,color:C.text,lineHeight:1,letterSpacing:"-0.5px"}}>🏆 <span style={{color:RED}}>BRACKET</span></div>
         {/* Room ID badge */}
         <div style={{
           display:"inline-flex",alignItems:"center",gap:8,marginTop:10,
