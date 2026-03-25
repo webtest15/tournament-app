@@ -661,7 +661,7 @@ function TournamentApp({ roomId, onLeave }) {
         <div style={{fontSize:32,fontWeight:900,color:C.text,lineHeight:1,letterSpacing:"-0.5px"}}>
           🏆 <span style={{color:RED}}>ブラケット</span>
         </div>
-        <RoomBadge roomId={roomId} onLeave={()=>{ if(window.confirm("ルームを退出しますか？\nルームIDで再入室できます。")) onLeave(); }}/>
+        <RoomBadge roomId={roomId} onLeave={onLeave}/>
         <div style={{marginTop:8}}>
           {isAdmin ? (
             <div style={{display:"inline-flex",alignItems:"center",gap:8,background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:20,padding:"4px 14px"}}>
@@ -731,7 +731,10 @@ export default function App() {
     try { sessionStorage.setItem("trn-room", id); } catch {}
     setRoomId(id);
   };
-  const leaveRoom = () => {
+  const leaveRoom = async () => {
+    if (!window.confirm("ルームを退出するとデータが削除されます。\nよろしいですか？")) return;
+    // Firebaseのルームデータを削除してサーバーをクリーン保つ
+    if (roomId) await fbSet(`rooms/${roomId}`, null);
     try { sessionStorage.removeItem("trn-room"); } catch {}
     setRoomId(null);
   };
